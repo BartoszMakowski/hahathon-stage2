@@ -3,9 +3,9 @@ from games.views import *
 
 
 urlpatterns = [
-                  url(r'^/', get_recent_awaiting),
-                  url(r'^/id', get_detailed_info),
-                  url(r'^/{id}/[join|start|leave|surrender]/', perform_action),
+                  url(r'^/', create_new),
+                  url(r'^/(?P<id>[0-9a-f-]+)', get_detailed_info),
+                  url(r'^/(?P<id>[0-9a-f-]+)/(?P<action>[\w]+)/', perform_action),
                   url(r'^/{id}/moves/', get_moves_list),
                   url(r'^/{id}/moves/last/', get_last_move),
               ]
