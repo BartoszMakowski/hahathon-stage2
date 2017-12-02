@@ -26,18 +26,20 @@ class UserProfile(User):
         )
 
 class Player(models.Model):
+    id = models.AutoField(primary_key=True)
     user = models.ForeignKey(UserProfile, on_delete=models.CASCADE)
     game_id = models.CharField(max_length=100, null=True)
     won = models.BooleanField(default=False)
+    owner = models.BooleanField()
     first = models.BooleanField()
 
     def as_json(self):
         return dict(
-            # id=1,
+            # id=self.id,
             name=self.user.username,
-            won=False,
-            owner=True,
-            first=False,
+            won=self.won,
+            owner=self.owner,
+            first=self.first,
             user=self.user.id,
-            game=self.game_id
+            game=int(self.game_id),
         )

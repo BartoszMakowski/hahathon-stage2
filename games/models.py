@@ -1,7 +1,7 @@
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 from user.models import Player
-import uuid
 # from django.core.validators import MinValueValidator, MaxValueValidator
 
 import json
@@ -25,9 +25,10 @@ GAME_END_STATUS = (
 
 
 class Game(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    owner = models.ForeignKey(Player, related_name='owner')
-    guest = models.ForeignKey(Player, related_name='guest', null=True, blank=True)
+    id = models.AutoField(primary_key=True)
+    player_p1 = models.ForeignKey(Player, related_name='owner_player')
+    player_p2 = models.ForeignKey(Player, related_name='guest_player', null=True, blank=True)
+    players_counter = models.IntegerField()
     start_time = models.DateTimeField(null=True)
     end_time = models.DateTimeField(null=True)
     board = models.CharField(max_length=225)
@@ -44,6 +45,13 @@ class Game(models.Model):
     def get_awaiting_games(cls):
         return Game.objects.all().exclude(start_time__gt=timezone.now())
 
+    @classmethod
+    def get_user_games(cls, user):
+        return Game.objects.filter(Q(player_p1__user=user) | Q(player_p2__user=user)).all()
+
+    @classmethod
+    def get_user_finished_games(cls, user):
+        return Game.objects.filter(Q(player_p1__user=user) | Q(player_p2__user=user)).filter(end_time < timezone.now()).all()
 
     def check_end(self):
         end_line = 5
@@ -75,6 +83,13 @@ class Game(models.Model):
                     field_owner = self.board[j][i]
         return False
 
+    def start(self):
+        self.start_time = timezone.now()
+        self.save()
+
+    def end(self):
+        self.end_time = timezone.now()
+        self.save()
 
     def is_started(self):
         try:
@@ -89,22 +104,13 @@ class Game(models.Model):
             return False
 
     def get_number_of_players(self):
-        if self.guest is not None:
-            return 2
-        else:
-            return 1
+        return self.players_counter
 
     def get_players_jsons(self):
-        players_jsons = [ self.owner.as_json(), ]
-        if self.guest is not None:
-            players_jsons.append(self.guest.as_json())
+        players_jsons = [self.player_p1.as_json(), ]
+        if self.player_p2 is not None:
+            players_jsons.append(self.player_p2.as_json())
         return players_jsons
-
-    def set_gamefield(self, x):
-        self.board = json.dumps(x)
-
-    def get_gamefield(self):
-        return json.loads(self.board)
 
     def as_json_without_board(self):
         return dict(
@@ -122,13 +128,14 @@ class Game(models.Model):
         json_dict['board'] = self.board
         return json_dict
 
+
 class Move(models.Model):
     player = models.ForeignKey(Player)
     timestamp = models.DateTimeField(default=timezone.now)
     x_coordinate = models.IntegerField()
     y_coordinate = models.IntegerField()
 
-# class BoardField(models.Model):
-#          x = models.IntegerField(validators=[MinValueValidator()]),
-#          y = models.IntegerField)(),
-#          status = models.CharField(choices=FIELD_STATUS)
+    # class BoardField(models.Model):
+    #          x = models.IntegerField(validators=[MinValueValidator()]),
+    #          y = models.IntegerField)(),
+    #          status = models.CharField(choices=FIELD_STATUS)

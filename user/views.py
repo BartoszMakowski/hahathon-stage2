@@ -8,9 +8,9 @@ from rest_framework.response import Response
 from django.http import JsonResponse
 from django.core import serializers
 
+from games.models import Game
 from user.models import UserProfile
 from django.contrib.auth.models import User
-
 
 
 @require_http_methods(["POST"])
@@ -25,7 +25,7 @@ def register(request):
             password=password
         )
         user = UserProfile.objects.create_user(username=username, password=password)
-    return JsonResponse(user.as_json() , status=201, safe=False)
+    return JsonResponse(user.as_json(), status=201, safe=False)
 
 
 @require_http_methods(["POST"])
@@ -35,9 +35,8 @@ def login_user(request):
     user = authenticate(username=username, password=password)
     if user is not None:
         login(request, user)
-        try:
-            user_profile = UserProfile.objects.get(username=username)
-        except:
+        user_profile = UserProfile.objects.filter(username=username).first()
+        if user_profile is None:
             return JsonResponse({}, status=400)
         # user_serializer = UserProfileSerializer(user_profile, context=serializer_context)
         return JsonResponse(user_profile.as_json(), status=200)
@@ -56,6 +55,7 @@ def logout_user(request):
 
 @require_http_methods(["GET", "PATCH"])
 def get_about_me(request):
+    print("TEST2")
     if request.method == "GET":
         try:
             user_profile = UserProfile.objects.get(username=request.user.username)
@@ -67,6 +67,7 @@ def get_about_me(request):
         user_info = {}
         return user_info
 
+
 @require_http_methods(["GET"])
 def get_info(request, id):
     try:
@@ -76,14 +77,15 @@ def get_info(request, id):
         return JsonResponse({}, status=404)
 
 
-
 @require_http_methods(["GET"])
 def get_active_awaiting_games(request):
     active_games = []
     return active_games
 
+
 @require_http_methods(["GET"])
 def get_finished_games(request):
-    finished_games = []
-    return finished_games
-
+    print("TEST")
+    finished_games = Game.get_user_finished_games(request.user)
+    json_response = [game.as_json() for game in finished_games]
+    return JsonResponse(json_response, status=200)
