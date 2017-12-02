@@ -22,6 +22,6 @@ schema_view = get_swagger_view(title='HAHATON API')
 
 urlpatterns = [
                   url(r'^admin/', admin.site.urls),
-                  url(r'^api/user', include('user.urls')),
-                  url(r'^api/games', include('games.urls')),
+                  url(r'^api/user/', include('user.urls')),
+                  url(r'^api/games/', include('games.urls')),
               ]

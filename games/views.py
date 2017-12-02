@@ -78,7 +78,6 @@ def perform_action(request, id, action):
                 game.player_p2.save()
             else:
                 return JsonResponse({'error': 'You are not participating in this game.'}, status=400)
-
             game.start()
             json_response = dict(
                 game=game.as_json(),
@@ -101,7 +100,6 @@ def perform_action(request, id, action):
                     and game.player_p2.user == request.user:
                 game.player_p2.delete()
                 game.player_p2.save()
-                # game.save()
             else:
                 return JsonResponse({'error': 'You are not participating in this game.'}, status=400)
 

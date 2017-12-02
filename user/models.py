@@ -15,7 +15,7 @@ class UserProfile(User):
         else:
             return False
 
-    def as_json(self):
+    def stats_as_json(self, stats):
         return dict(
             username=self.username,
             draws=0,
