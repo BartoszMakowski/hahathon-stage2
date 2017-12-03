@@ -92,7 +92,8 @@ def perform_action(request, id, action):
                     game.player_p1 = game.player_p2
                     game.player_p1.save()
                     game.player_p2.delete()
-                    game.player_p2.save()
+                    game.player_p2 = None
+                    game.save()
                 else:
                     game.player_p1.delete()
                     game.player_p1.save()
@@ -100,7 +101,8 @@ def perform_action(request, id, action):
             elif game.player_p2 is not None \
                     and game.player_p2.user == request.user:
                 game.player_p2.delete()
-                game.player_p2.save()
+                game.player_p2 = None
+                game.save()
             else:
                 return JsonResponse({'error': 'You are not participating in this game.'}, status=400)
 
@@ -157,7 +159,12 @@ def get_moves_make_move(request, id):
                     )
                     return JsonResponse(json_response, status=200, safe=False)
                 else:
-                    return JsonResponse(move_status['message'], status=move_status['status'])
+                    # print(move_status)
+                    # print(game.as_json())
+                    json_response = dict(
+                        error=move_status['message']
+                    )
+                    return JsonResponse(json_response, status=move_status['status'], safe=False)
     return JsonResponse({}, status=501)
 
 

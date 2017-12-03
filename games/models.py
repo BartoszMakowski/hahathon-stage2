@@ -110,8 +110,8 @@ class Game(models.Model):
                 self.player_p2.save()
 
         if self.check_full_board():
-            self.end()
             self.game_end_status = 'd'
+            self.end()
 
     # check if board does not contain empty fields
     # (if there is no winner and board is full = draw)
@@ -119,7 +119,7 @@ class Game(models.Model):
         board = self.get_board()
         for i in range(15):
             for j in range(15):
-                if board[i][j] is not None:
+                if board[i][j] is None:
                     return False
         return True
 
@@ -257,14 +257,28 @@ class Game(models.Model):
             )
         elif board[move.x_coordinate][move.y_coordinate] is not None:  # field is taken
             return dict(
-                message='This field is already taken',
+                message='This spot is already taken.',
                 status=400
             )
         else:
+            last_move = Move.objects.filter(game=self).order_by('-timestamp').first()
+            if last_move is None:
+                if self.player_p1 != move.player:
+                    return dict(
+                        message="It's not your turn to move",
+                        status=400
+                    )
+            elif last_move.player == move.player:
+                return dict(
+                    message="It's not your turn to move",
+                    status=400
+                )
+
             if move.player == self.player_p1:
                 board[move.x_coordinate][move.y_coordinate] = 'o'
                 self.set_board(board)
                 self.save()
+                move.save()
                 return dict(
                     message='ok',
                     status=200
@@ -274,6 +288,7 @@ class Game(models.Model):
                 board[move.x_coordinate][move.y_coordinate] = 'g'
                 self.set_board(board)
                 self.save()
+                move.save()
                 return dict(
                     message='ok',
                     status=200
