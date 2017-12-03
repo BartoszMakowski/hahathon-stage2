@@ -20,9 +20,11 @@ class Game(models.Model):
     board = models.CharField(max_length=5000)
     game_end_status = models.CharField(choices=GAME_END_STATUS, max_length=1)
 
+    # get board as list of lists
     def get_board(self):
         return json.loads(self.board)
 
+    # save board (list of lists) as json string
     def set_board(self, board):
         self.board = json.dumps(board)
 
@@ -88,11 +90,15 @@ class Game(models.Model):
         )
         return player_stats
 
-
+    # check if one of the players won or board is full
     def check_game_end(self):
         winner = self.check_horizontal_win()
         if winner is False:
             winner = self.check_vertical_win()
+            if winner is False:
+                winner = self.check_l_diagonal_win()
+                if winner is False:
+                    winner = self.check_r_diagonal_win()
         if winner is not False:
             self.game_end_status = 'n'
             self.end()
@@ -107,7 +113,8 @@ class Game(models.Model):
             self.end()
             self.game_end_status = 'd'
 
-
+    # check if board does not contain empty fields
+    # (if there is no winner and board is full = draw)
     def check_full_board(self):
         board = self.get_board()
         for i in range(15):
@@ -116,7 +123,7 @@ class Game(models.Model):
                     return False
         return True
 
-
+    # find and return horizontal winner (False if there is no winner)
     def check_horizontal_win(self):
         end_line = 5
         board = self.get_board()
@@ -133,6 +140,7 @@ class Game(models.Model):
                     field_owner = board[i][j]
         return False
 
+    # find and return vertical winner (False if there is no winner)
     def check_vertical_win(self):
         end_line = 5
         board = self.get_board()
@@ -149,10 +157,50 @@ class Game(models.Model):
                     field_owner = board[j][i]
         return False
 
+    # find and return right-diagonal winner (False if there is no winner)
+    def check_r_diagonal_win(self):
+        end_line = 5
+        board = self.get_board()
+        for i in range(15):
+             field_owner = board[i][0]
+             counter = 0
+             for j in range(15):
+                 if ((i+j)%15 == 0):
+                     counter = 0
+                 if board[(i+j)%15][j] == field_owner:
+                     counter += 1
+                     if counter == end_line and field_owner is not None:
+                         return field_owner
+                 else:
+                     counter = 1
+                     field_owner = board[(i+j)%15][j]
+        return False
+
+    # find and return left-diagonal winner (False if there is no winner)
+    def check_l_diagonal_win(self):
+        end_line = 5
+        board = self.get_board()
+        for i in range(15):
+            field_owner = board[i][0]
+            counter = 0
+            for j in range(15):
+                if ((i - j) % 15 == 0):
+                    counter = 0
+                if board[(i - j) % 15][j] == field_owner:
+                    counter += 1
+                    if counter == end_line and field_owner is not None:
+                        return field_owner
+                else:
+                    counter = 1
+                    field_owner = board[(i - j) % 15][j]
+        return False
+
+
     # start game
     def start(self):
         self.start_time = timezone.now()
         self.save()
+
 
     # end game
     def end(self):
@@ -184,7 +232,7 @@ class Game(models.Model):
             players_jsons.append(self.player_p2.as_json())
         return players_jsons
 
-    # return user's player in the game
+    # return player of the user in the game
     def get_my_player(self, user):
         if self.player_p1.user == user:
             return self.player_p1
@@ -231,7 +279,6 @@ class Game(models.Model):
                     status=200
                 )
 
-
     # return game (without the board) in json format
     def as_json_without_board(self):
         return dict(
@@ -267,8 +314,3 @@ class Move(models.Model):
             x=self.x_coordinate,
             y=self.y_coordinate,
         )
-
-    # class BoardField(models.Model):
-    #          x = models.IntegerField(validators=[MinValueValidator()]),
-    #          y = models.IntegerField)(),
-    #          status = models.CharField(choices=FIELD_STATUS)
