@@ -2,6 +2,7 @@ from django.db import models
 from django.db.models import Q
 from django.utils import timezone
 from user.models import Player
+import simplejson as json
 
 GAME_END_STATUS = (
     ('n', 'normal'),
@@ -16,8 +17,14 @@ class Game(models.Model):
     players_counter = models.IntegerField()
     start_time = models.DateTimeField(null=True)
     end_time = models.DateTimeField(null=True)
-    board = models.CharField(max_length=225)
+    board = models.CharField(max_length=5000)
     game_end_status = models.CharField(choices=GAME_END_STATUS, max_length=1)
+
+    def get_board(self):
+        return json.loads(self.board)
+
+    def set_board(self, board):
+        self.board = json.dumps(board)
 
     # create board with null elements
     @classmethod
@@ -82,35 +89,64 @@ class Game(models.Model):
         return player_stats
 
 
-    # check if the game ended
-    def check_end(self):
+    def check_game_end(self):
+        winner = self.check_horizontal_win()
+        if winner is False:
+            winner = self.check_vertical_win()
+        if winner is not False:
+            self.game_end_status = 'n'
+            self.end()
+            if winner == 'o':
+                self.player_p1.won = True
+                self.player_p1.save()
+            else:
+                self.player_p2.won = True
+                self.player_p2.save()
+
+        if self.check_full_board():
+            self.end()
+            self.game_end_status = 'd'
+
+
+    def check_full_board(self):
+        board = self.get_board()
+        for i in range(15):
+            for j in range(15):
+                if board[i][j] is not None:
+                    return False
+        return True
+
+
+    def check_horizontal_win(self):
         end_line = 5
-
-        # horizontal - TODO: new function
+        board = self.get_board()
         for i in range(15):
-            field_owner = self.board[i][0]
+            field_owner = board[i][0]
             counter = 0
             for j in range(15):
-                if self.board[i][j] == field_owner:
+                if board[i][j] == field_owner:
                     counter += 1
                     if counter == end_line and field_owner is not None:
                         return field_owner
                 else:
                     counter = 1
-                    field_owner = self.board[i][j]
+                    field_owner = board[i][j]
+        return False
 
-        # vertical - TODO: new function
+    def check_vertical_win(self):
+        end_line = 5
+        board = self.get_board()
         for i in range(15):
-            field_owner = self.board[0][i]
+            field_owner = board[i][0]
             counter = 0
             for j in range(15):
-                if self.board[j][i] == field_owner:
+                if board[j][i] == field_owner:
                     counter += 1
                     if counter == end_line and field_owner is not None:
                         return field_owner
                 else:
                     counter = 1
-                    field_owner = self.board[j][i]
+                    field_owner = board[j][i]
         return False
 
     # start game
@@ -148,6 +184,54 @@ class Game(models.Model):
             players_jsons.append(self.player_p2.as_json())
         return players_jsons
 
+    # return user's player in the game
+    def get_my_player(self, user):
+        if self.player_p1.user == user:
+            return self.player_p1
+        elif self.player_p2 is not None \
+                and self.player_p2.user == user:
+            return self.player_p2
+        else:
+            return None
+
+    # make player's move
+    def make_move(self, move):
+        board = self.get_board()
+        if not self.is_started():
+            return dict(
+                message='This game is not started yet.',
+                status=400
+            )
+        elif self.is_finished():
+            return dict(
+                message='This game is finished already.',
+                status=400
+            )
+        elif board[move.x_coordinate][move.y_coordinate] is not None:  # field is taken
+            return dict(
+                message='This field is already taken',
+                status=400
+            )
+        else:
+            if move.player == self.player_p1:
+                board[move.x_coordinate][move.y_coordinate] = 'o'
+                self.set_board(board)
+                self.save()
+                return dict(
+                    message='ok',
+                    status=200
+                )
+
+            elif move.player == self.player_p2:
+                board[move.x_coordinate][move.y_coordinate] = 'g'
+                self.set_board(board)
+                self.save()
+                return dict(
+                    message='ok',
+                    status=200
+                )
+
+
     # return game (without the board) in json format
     def as_json_without_board(self):
         return dict(
@@ -163,15 +247,26 @@ class Game(models.Model):
     # return game in json format
     def as_json(self):
         json_dict = self.as_json_without_board()
-        json_dict['board'] = self.board
+        json_dict['board'] = self.get_board()
         return json_dict
 
 
 class Move(models.Model):
+    id = models.AutoField(primary_key=True)
+    game = models.ForeignKey(Game)
     player = models.ForeignKey(Player)
     timestamp = models.DateTimeField(default=timezone.now)
     x_coordinate = models.IntegerField()
     y_coordinate = models.IntegerField()
+
+    def as_json(self):
+        return dict(
+            id=self.id,
+            player=self.player.id,
+            timestamp=self.timestamp,
+            x=self.x_coordinate,
+            y=self.y_coordinate,
+        )
 
     # class BoardField(models.Model):
     #          x = models.IntegerField(validators=[MinValueValidator()]),

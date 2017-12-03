@@ -1,7 +1,8 @@
 from django.views.decorators.http import require_http_methods
 from django.http import JsonResponse
-from games.models import Game
+from games.models import Game, Move
 from user.models import Player
+import simplejson as json
 
 
 @require_http_methods(["GET"])
@@ -23,7 +24,7 @@ def create_new(request):
         )
         new_game = Game.objects.create(
             player_p1=my_player,
-            board=Game.create_new_board(),
+            board=json.dumps(Game.create_new_board()),
             players_counter=1
         )
         # new_game.check_end()
@@ -123,20 +124,44 @@ def perform_action(request, id, action):
         return JsonResponse({'success': True}, status=200)
 
     else:
-        return JsonResponse({}, status=500)
+        return JsonResponse({}, status=501)
 
 
 @require_http_methods(["GET", "POST"])
-def get_moves_list(request, id):
+def get_moves_make_move(request, id):
     if request.method == "GET":
         moves_list = []
-        return moves_list
+        return JsonResponse({}, status=501)
     elif request.method == "POST":
-        move_status = {}
-        return move_status
+        game = Game.objects.filter(id=id).first()
+        if game is not None and game.is_started():
+            my_player = game.get_my_player(request.user)
+            if my_player is None:
+                return JsonResponse({'error': 'You are not participating in this game.'}, status=400)
+            else: # user is participating in this game
+                x_coord = int(request.POST['x'])
+                y_coord = int(request.POST['y'])
+                my_move = Move(
+                    game=game,
+                    player=my_player,
+                    x_coordinate=x_coord,
+                    y_coordinate=y_coord,
+                )
+                move_status = game.make_move(my_move)
+                game.check_game_end()
+                if move_status['status'] == 200:
+                    # print(game.get_board())
+                    json_response = dict(
+                        game=game.as_json(),
+                        move=my_move.as_json()
+                    )
+                    return JsonResponse(json_response, status=200, safe=False)
+                else:
+                    return JsonResponse(move_status['message'], status=move_status['status'])
+    return JsonResponse({}, status=501)
 
 
 @require_http_methods(["GET"])
 def get_last_move(request, id):
     last_move = {}
-    return last_move
+    return JsonResponse({}, status=501)
