@@ -58,13 +58,16 @@ def logout_user(request):
 
 @require_http_methods(["GET", "PATCH"])
 def get_about_me(request):
-    if request.method == "GET":
-        user_stats = Game.get_user_stats(request.user)
-        return JsonResponse(user_stats, status=200)
+    if request.user.is_authenticated():
+        if request.method == "GET":
+            user_stats = Game.get_user_stats(request.user)
+            return JsonResponse(user_stats, status=200)
 
-    elif request.method == "PATCH":
-        user_info = {}
-        return user_info
+        elif request.method == "PATCH":
+            user_info = {}
+            return user_info
+    else:
+        return JsonResponse({'detail': 'Authentication credentials were not provided.'}, status=403)
 
 
 @require_http_methods(["GET"])

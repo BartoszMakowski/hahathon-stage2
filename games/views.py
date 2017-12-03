@@ -5,21 +5,22 @@ from user.models import Player
 import simplejson as json
 
 
-@require_http_methods(["GET"])
-def get_recent_awaiting(request):
-    awaiting_games = Game.objects.filter(players_counter=1).all()
-    json_response = [game.as_json() for game in awaiting_games]
-    return JsonResponse(json_response, status=200)
+# @require_http_methods(["GET"])
+# def get_recent_awaiting(request):
+#     if request.user.is_authenticated():
+#         awaiting_games = Game.objects.filter(players_counter=1).all()
+#         json_response = [game.as_json() for game in awaiting_games]
+#         return JsonResponse(json_response, status=200)
+#     else:
+#         return JsonResponse({'error': 'err'}, status=403)
 
 
 @require_http_methods(["GET", "POST"])
 def create_new(request):
     if request.method == "POST":
-        # TODO: first player random choice
         my_player = Player.objects.create(
             user=request.user,
             owner=True,
-            # first=bool(random.getrandbits(1))
             first=False
         )
         new_game = Game.objects.create(
@@ -27,13 +28,15 @@ def create_new(request):
             board=json.dumps(Game.create_new_board()),
             players_counter=1
         )
-        # new_game.check_end()
         new_game.player_p1.game_id = new_game.id
         new_game.player_p1.save()
         return JsonResponse(new_game.as_json(), status=201)
     else:
-        awaiting_games = [game.as_json_without_board() for game in Game.get_awaiting_games()]
-    return JsonResponse(awaiting_games, status=200, safe=False)
+        if request.user.is_authenticated():
+            awaiting_games = [game.as_json_without_board() for game in Game.get_awaiting_games()]
+            return JsonResponse(awaiting_games, status=200, safe=False)
+        else:
+            return JsonResponse({'detail': 'Authentication credentials were not provided.'}, status=403)
 
 
 @require_http_methods(["GET"])

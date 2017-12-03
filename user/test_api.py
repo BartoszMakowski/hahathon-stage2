@@ -102,7 +102,6 @@ class UserAPITestCase(APITestCase):
         response = self.api_client.post(
             '/api/user/logout/',
         )
-        print(response)
         self.assertEqual(response.status_code, 200)
 
         response = self.api_client.get(

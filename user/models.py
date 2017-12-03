@@ -15,15 +15,15 @@ class UserProfile(User):
         else:
             return False
 
-    def stats_as_json(self, stats):
-        return dict(
-            username=self.username,
-            draws=0,
-            lost=0,
-            surrendered=0,
-            won=0,
-            won_by_surrender=0
-        )
+    # def stats_as_json(self, stats):
+    #     return dict(
+    #         username=self.username,
+    #         draws=0,
+    #         lost=0,
+    #         surrendered=0,
+    #         won=0,
+    #         won_by_surrender=0
+    #     )
 
 class Player(models.Model):
     id = models.AutoField(primary_key=True)
