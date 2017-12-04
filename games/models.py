@@ -10,6 +10,7 @@ GAME_END_STATUS = (
     ('d', 'draw')
 )
 
+
 class Game(models.Model):
     id = models.AutoField(primary_key=True)
     player_p1 = models.ForeignKey(Player, related_name='owner_player')
@@ -36,7 +37,7 @@ class Game(models.Model):
             new_board.append([None] * 15)
         return new_board
 
-    # get all games awaiting for start
+    # get all games awaiting start
     @classmethod
     def get_awaiting_games(cls):
         return Game.objects.filter(players_counter=1).all()
@@ -162,18 +163,18 @@ class Game(models.Model):
         end_line = 5
         board = self.get_board()
         for i in range(15):
-             field_owner = board[i][0]
-             counter = 0
-             for j in range(15):
-                 if ((i+j)%15 == 0):
-                     counter = 0
-                 if board[(i+j)%15][j] == field_owner:
-                     counter += 1
-                     if counter == end_line and field_owner is not None:
-                         return field_owner
-                 else:
-                     counter = 1
-                     field_owner = board[(i+j)%15][j]
+            field_owner = board[i][0]
+            counter = 0
+            for j in range(15):
+                if ((i + j) % 15 == 0):
+                    counter = 0
+                if board[(i + j) % 15][j] == field_owner:
+                    counter += 1
+                    if counter == end_line and field_owner is not None:
+                        return field_owner
+                else:
+                    counter = 1
+                    field_owner = board[(i + j) % 15][j]
         return False
 
     # find and return left-diagonal winner (False if there is no winner)
@@ -195,12 +196,10 @@ class Game(models.Model):
                     field_owner = board[(i - j) % 15][j]
         return False
 
-
     # start game
     def start(self):
         self.start_time = timezone.now()
         self.save()
-
 
     # end game
     def end(self):
@@ -209,16 +208,16 @@ class Game(models.Model):
 
     # check if game is running or finished
     def is_started(self):
-        try:
+        if self.start_time is not None:
             return self.start_time < timezone.now()
-        except:
+        else:
             return False
 
     # check if game is finished
     def is_finished(self):
-        try:
+        if self.end_time is not None:
             return self.end_time < timezone.now()
-        except:
+        else:
             return False
 
     # get number of players in the game
@@ -247,12 +246,12 @@ class Game(models.Model):
         board = self.get_board()
         if not self.is_started():
             return dict(
-                message='This game is not started yet.',
+                message="This game didn't started yet.",
                 status=400
             )
         elif self.is_finished():
             return dict(
-                message='This game is finished already.',
+                message='This game is already finished.',
                 status=400
             )
         elif board[move.x_coordinate][move.y_coordinate] is not None:  # field is taken
@@ -261,19 +260,22 @@ class Game(models.Model):
                 status=400
             )
         else:
-            last_move = Move.objects.filter(game=self).order_by('-timestamp').first()
+            # check if it's turn of move's player
+            last_move = Move.get_game_moves(self).first()
+            # check if it's first move
             if last_move is None:
                 if self.player_p1 != move.player:
                     return dict(
                         message="It's not your turn to move",
                         status=400
                     )
+            # double move of the same player
             elif last_move.player == move.player:
                 return dict(
                     message="It's not your turn to move",
                     status=400
                 )
-
+            # correct move of game's owner
             if move.player == self.player_p1:
                 board[move.x_coordinate][move.y_coordinate] = 'o'
                 self.set_board(board)
@@ -283,7 +285,7 @@ class Game(models.Model):
                     message='ok',
                     status=200
                 )
-
+            # # correct move of game's guest
             elif move.player == self.player_p2:
                 board[move.x_coordinate][move.y_coordinate] = 'g'
                 self.set_board(board)
@@ -321,6 +323,11 @@ class Move(models.Model):
     x_coordinate = models.IntegerField()
     y_coordinate = models.IntegerField()
 
+    @classmethod
+    def get_game_moves(cls, game):
+        return Move.objects.filter(game=game).order_by('-timestamp').all()
+
+    # return move in json format
     def as_json(self):
         return dict(
             id=self.id,

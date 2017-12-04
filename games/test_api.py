@@ -288,6 +288,120 @@ class GamesAPITestCase(APITestCase, TestHelpers):
         self.assertEqual(response_json['move']['x'], 0)
         self.assertEqual(response_json['move']['y'], 0)
 
+    def test_get_moves(self):
+        """
+         - user can get moves' list of the game
+        """
+        game_id = self._create_working_game(self.player_1_client,
+                                            self.player_2_client)
+
+        response = self.player_1_client.get(
+            '/api/games/{}'.format(game_id),
+        )
+        self.assertEqual(response.status_code, 200)
+
+        should_be_first = self._first_player(response.json())
+
+        response = (self.player_1_client if should_be_first == OWNER else
+                    self.player_2_client).post(
+            '/api/games/{}/moves/'.format(game_id),
+            {'x': 0, 'y': 0}
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        response = (self.player_1_client if should_be_first != OWNER else
+                    self.player_2_client).post(
+            '/api/games/{}/moves/'.format(game_id),
+            {'x': 3, 'y': 7}
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+
+        response = self.player_1_client.get(
+            '/api/games/{}/moves/'.format(game_id)
+        )
+
+        response_json = response.json()
+
+        self.assertEqual(
+            response_json[0]['player'],
+            (self.player_1 if should_be_first != OWNER else self.player_2).id,
+        )
+        self.assertEqual(
+            response_json[0]['x'],
+            3,
+        )
+        self.assertEqual(
+            response_json[0]['y'],
+            7,
+        )
+
+        self.assertEqual(
+            response_json[1]['player'],
+            (self.player_1 if should_be_first == OWNER else self.player_2).id,
+        )
+        self.assertEqual(
+            response_json[1]['x'],
+            0,
+        )
+        self.assertEqual(
+            response_json[1]['y'],
+            0,
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_get_game_last_move(self):
+        """
+         - user can get last move of the game
+        """
+        game_id = self._create_working_game(self.player_1_client,
+                                            self.player_2_client)
+
+        response = self.player_1_client.get(
+            '/api/games/{}'.format(game_id),
+        )
+        self.assertEqual(response.status_code, 200)
+
+        should_be_first = self._first_player(response.json())
+
+        response = (self.player_1_client if should_be_first == OWNER else
+                    self.player_2_client).post(
+            '/api/games/{}/moves/'.format(game_id),
+            {'x': 0, 'y': 0}
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        response = (self.player_1_client if should_be_first != OWNER else
+                    self.player_2_client).post(
+            '/api/games/{}/moves/'.format(game_id),
+            {'x': 3, 'y': 7}
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        response = self.player_1_client.get(
+            '/api/games/{}/moves/last/'.format(game_id)
+        )
+
+        response_json = response.json()
+
+        self.assertEqual(
+            response_json['player'],
+            (self.player_1 if should_be_first != OWNER else self.player_2).id,
+        )
+        self.assertEqual(
+            response_json['x'],
+            3,
+        )
+        self.assertEqual(
+            response_json['y'],
+            7,
+        )
+        self.assertEqual(response.status_code, 200)
+
     def test_wrong_turn(self):
         """
          - user cannot make move if it is not his turn

@@ -93,6 +93,33 @@ class UserAPITestCase(APITestCase):
                               'won_by_surrender': 0, 'draws': 0,
                               'surrendered': 0})
 
+    def test_patch_me(self):
+        """
+         - user can patch his username
+        """
+        self._login()
+
+        response = self.api_client.patch(
+            '/api/user/me/',
+            {'username': 'player321321'}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertDictEqual(response.json(),
+                             {'username': 'player32132', 'won': 0, 'lost': 0,
+                              'won_by_surrender': 0, 'draws': 0,
+                              'surrendered': 0})
+
+        response = self.api_client.patch(
+            '/api/user/me/',
+            {'username': 'test_user'}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertDictEqual(response.json(),
+                             {'username': 'test_user', 'won': 0, 'lost': 0,
+                              'won_by_surrender': 0, 'draws': 0,
+                              'surrendered': 0})
+
     def test_logout(self):
         """
          - logged in user can log out
