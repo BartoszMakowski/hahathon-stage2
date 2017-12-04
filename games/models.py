@@ -14,7 +14,12 @@ GAME_END_STATUS = (
 class Game(models.Model):
     id = models.AutoField(primary_key=True)
     player_p1 = models.ForeignKey(Player, related_name='owner_player')
-    player_p2 = models.ForeignKey(Player, related_name='guest_player', null=True, blank=True)
+    player_p2 = models.ForeignKey(
+        Player,
+        related_name='guest_player',
+        null=True,
+        blank=True,
+    )
     players_counter = models.IntegerField()
     start_time = models.DateTimeField(null=True)
     end_time = models.DateTimeField(null=True)
@@ -45,17 +50,25 @@ class Game(models.Model):
     # get all games of the user
     @classmethod
     def get_user_games(cls, user):
-        return Game.objects.filter(Q(player_p1__user=user) | Q(player_p2__user=user)).all()
+        return Game.objects.filter(
+            Q(player_p1__user=user)
+            | Q(player_p2__user=user)
+        ).all()
 
     # get all finished games of the user
     @classmethod
     def get_user_finished_games(cls, user):
-        return cls.get_user_games(user).filter(end_time__lt=timezone.now()).all()
+        return cls.get_user_games(user).filter(
+            end_time__lt=timezone.now()
+        ).all()
 
     # get all awaiting games
     @classmethod
     def get_user_awaiting_games(cls, user):
-        return cls.get_awaiting_games().filter(Q(player_p1__user=user) | Q(player_p2__user=user)).all()
+        return cls.get_awaiting_games().filter(
+            Q(player_p1__user=user)
+            | Q(player_p2__user=user)
+        ).all()
 
     # get user's statistics (number of wins, draws and losses)
     @classmethod
@@ -254,7 +267,8 @@ class Game(models.Model):
                 message='This game is already finished.',
                 status=400
             )
-        elif board[move.x_coordinate][move.y_coordinate] is not None:  # field is taken
+        elif board[move.x_coordinate][move.y_coordinate] is not None:
+            # spot is taken
             return dict(
                 message='This spot is already taken.',
                 status=400
