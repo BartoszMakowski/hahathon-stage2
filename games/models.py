@@ -1,7 +1,7 @@
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
-from user.models import Player
+from user.models import UserProfile
 import simplejson as json
 
 GAME_END_STATUS = (
@@ -13,14 +13,7 @@ GAME_END_STATUS = (
 
 class Game(models.Model):
     id = models.AutoField(primary_key=True)
-    player_p1 = models.ForeignKey(Player, related_name='owner_player')
-    player_p2 = models.ForeignKey(
-        Player,
-        related_name='guest_player',
-        null=True,
-        blank=True,
-    )
-    players_counter = models.IntegerField()
+    players_count = models.IntegerField()
     start_time = models.DateTimeField(null=True)
     end_time = models.DateTimeField(null=True)
     board = models.CharField(max_length=5000)
@@ -45,14 +38,14 @@ class Game(models.Model):
     # get all games awaiting start
     @classmethod
     def get_awaiting_games(cls):
-        return Game.objects.filter(players_counter=1).all()
+        return Game.objects.filter(players_count=1).all()
 
     # get all games of the user
     @classmethod
     def get_user_games(cls, user):
+        user_players = Player.objects.filter(user=user).all()
         return Game.objects.filter(
-            Q(player_p1__user=user)
-            | Q(player_p2__user=user)
+            id__in=[player.game.id for player in user_players]
         ).all()
 
     # get all finished games of the user
@@ -65,10 +58,12 @@ class Game(models.Model):
     # get all awaiting games
     @classmethod
     def get_user_awaiting_games(cls, user):
-        return cls.get_awaiting_games().filter(
-            Q(player_p1__user=user)
-            | Q(player_p2__user=user)
-        ).all()
+        user_players = Player.objects.filter(user=user).all()
+        return [
+            player.game
+            for player in user_players
+            if player.game.players_counter == 1
+        ]
 
     # get user's statistics (number of wins, draws and losses)
     @classmethod
@@ -76,31 +71,35 @@ class Game(models.Model):
         user_games = cls.get_user_finished_games(user)
         normal_finished_games = user_games.filter(game_end_status='n')
         draw_finished_games = user_games.filter(game_end_status='d')
-        surrendered_games = user_games.filter(game_end_status='s')
+        # surrendered_games = user_games.filter(game_end_status='s')
+        user_players = Player.objects.filter(
+            game__in=user_games,
+            user=user
+        ).all()
 
+        won_players = user_players.filter(won=True).all()
+        normal_won_players = won_players.filter(game__in=normal_finished_games)
+
+        all_won_number = won_players.count()
+        surrender_won_number = all_won_number - normal_won_players.count()
+
+        lost_players = user_players\
+            .filter(won=False)\
+            .exclude(game__in=draw_finished_games).all()
+        normal_lost_players = lost_players.filter(
+            game__in=normal_finished_games
+        )
+        all_lost_number = lost_players.count()
+        surrender_lost_number = all_lost_number - normal_lost_players.count()
         draw_number = draw_finished_games.count()
-        normal_number = normal_finished_games.count()
-        surrendered_number = surrendered_games.count()
-        won_number = normal_finished_games.filter(
-            (Q(player_p1__user=user) & Q(player_p1__won=True))
-            | (Q(player_p2__user=user) & Q(player_p2__won=True))
-        ).count()
-
-        won_by_surrender_number = surrendered_games.filter(
-            (Q(player_p1__user=user) & Q(player_p1__won=True))
-            | (Q(player_p2__user=user) & Q(player_p2__won=True))
-        ).count()
-
-        lost_by_surrender_number = surrendered_number - won_by_surrender_number
-        lost_number = normal_number - won_number
 
         player_stats = dict(
             username=user.username,
-            won=(won_number + won_by_surrender_number),
-            lost=(lost_number + lost_by_surrender_number),
-            won_by_surrender=won_by_surrender_number,
+            won=all_won_number,
+            lost=all_lost_number,
+            won_by_surrender=surrender_won_number,
             draws=draw_number,
-            surrendered=lost_by_surrender_number,
+            surrendered=surrender_lost_number
         )
         return player_stats
 
@@ -117,11 +116,17 @@ class Game(models.Model):
             self.game_end_status = 'n'
             self.end()
             if winner == 'o':
-                self.player_p1.won = True
-                self.player_p1.save()
+                winner_player = Player.objects.filter(
+                    game=self,
+                    owner=True
+                ).first()
             else:
-                self.player_p2.won = True
-                self.player_p2.save()
+                winner_player = Player.objects.filter(
+                    game=self,
+                    owner=False
+                ).first()
+            winner_player.won = True
+            winner_player.save()
 
         if self.check_full_board():
             self.game_end_status = 'd'
@@ -235,24 +240,7 @@ class Game(models.Model):
 
     # get number of players in the game
     def get_number_of_players(self):
-        return self.players_counter
-
-    # get players' info in json format
-    def get_players_jsons(self):
-        players_jsons = [self.player_p1.as_json(), ]
-        if self.player_p2 is not None:
-            players_jsons.append(self.player_p2.as_json())
-        return players_jsons
-
-    # return player of the user in the game
-    def get_my_player(self, user):
-        if self.player_p1.user == user:
-            return self.player_p1
-        elif self.player_p2 is not None \
-                and self.player_p2.user == user:
-            return self.player_p2
-        else:
-            return None
+        return self.players_count
 
     # make player's move
     def make_move(self, move):
@@ -267,7 +255,7 @@ class Game(models.Model):
                 message='This game is already finished.',
                 status=400
             )
-        elif board[move.x_coordinate][move.y_coordinate] is not None:
+        elif board[move.x][move.y] is not None:
             # spot is taken
             return dict(
                 message='This spot is already taken.',
@@ -278,7 +266,7 @@ class Game(models.Model):
             last_move = Move.get_game_moves(self).first()
             # check if it's first move
             if last_move is None:
-                if self.player_p1 != move.player:
+                if move.player.owner is False:
                     return dict(
                         message="It's not your turn to move",
                         status=400
@@ -290,8 +278,8 @@ class Game(models.Model):
                     status=400
                 )
             # correct move of game's owner
-            if move.player == self.player_p1:
-                board[move.x_coordinate][move.y_coordinate] = 'o'
+            if move.player.owner is True:
+                board[move.x][move.y] = 'o'
                 self.set_board(board)
                 self.save()
                 move.save()
@@ -299,9 +287,9 @@ class Game(models.Model):
                     message='ok',
                     status=200
                 )
-            # # correct move of game's guest
-            elif move.player == self.player_p2:
-                board[move.x_coordinate][move.y_coordinate] = 'g'
+            # correct move of game's guest
+            else:
+                board[move.x][move.y] = 'g'
                 self.set_board(board)
                 self.save()
                 move.save()
@@ -315,7 +303,6 @@ class Game(models.Model):
         return dict(
             id=self.id,
             players_count=self.get_number_of_players(),
-            players=self.get_players_jsons(),
             started=self.is_started(),
             finished=self.is_finished(),
             surrendered=(self.game_end_status == 's'),
@@ -329,13 +316,33 @@ class Game(models.Model):
         return json_dict
 
 
+class Player(models.Model):
+    id = models.AutoField(primary_key=True)
+    game = models.ForeignKey(Game, related_name='players')
+    user = models.ForeignKey(UserProfile, on_delete=models.CASCADE)
+    won = models.BooleanField(default=False)
+    owner = models.BooleanField()
+    first = models.BooleanField()
+
+    # return player's info as dictionary
+    def as_json(self):
+        return dict(
+            name=self.user.username,
+            won=self.won,
+            owner=self.owner,
+            first=self.first,
+            user=self.user.id,
+            game=Game.get_player_game(self).id
+        )
+
+
 class Move(models.Model):
     id = models.AutoField(primary_key=True)
     game = models.ForeignKey(Game)
     player = models.ForeignKey(Player)
     timestamp = models.DateTimeField(default=timezone.now)
-    x_coordinate = models.IntegerField()
-    y_coordinate = models.IntegerField()
+    x = models.IntegerField()
+    y = models.IntegerField()
 
     @classmethod
     def get_game_moves(cls, game):
@@ -347,6 +354,6 @@ class Move(models.Model):
             id=self.id,
             player=self.player.id,
             timestamp=self.timestamp,
-            x=self.x_coordinate,
-            y=self.y_coordinate,
+            x=self.x,
+            y=self.y,
         )

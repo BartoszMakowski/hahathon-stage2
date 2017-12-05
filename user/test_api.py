@@ -106,7 +106,7 @@ class UserAPITestCase(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertDictEqual(response.json(),
-                             {'username': 'player32132', 'won': 0, 'lost': 0,
+                             {'username': 'player321321', 'won': 0, 'lost': 0,
                               'won_by_surrender': 0, 'draws': 0,
                               'surrendered': 0})
 
